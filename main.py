@@ -2,6 +2,7 @@
 ####                                  Import Libraries                                ####
 ##########################################################################################
 import enum
+from multiprocessing import Queue
 import threading
 from deepface import DeepFace                                     #DeepFace library      #
 from retinaface import RetinaFace                                 #RetinaFace library    #
@@ -9,7 +10,6 @@ import matplotlib.pyplot as plt                                   #Matplotlib li
 import time                                                       #Time library          #
 import cv2                                                        #OpenCV library        #
 from cprint import *                                              #Colorful print library#
-from vidgear.gears import CamGear                                 #VidGear library       #
 from pygrabber.dshow_graph import FilterGraph                     #PyGrabber library     #
 
 ### DETECTION LIBRARIESS ###
@@ -17,7 +17,9 @@ import torch                                                      #Pytorch libra
 ##########################################################################################
 ####                                  Custom Libraries                                ####
 ##########################################################################################
-from detection.libs.detection import Detection                    #Detection Component   #
+from libs.detection import Detection                        #Detection Component   #
+from libs.recognition import Recognition                    #Recognition Component #
+from libs.settings import Setting                           #Setting Component     #
 ##########################################################################################
 
 
@@ -40,30 +42,16 @@ cprint.ok('Running on device: {}'.format(device))
 
 
 
-
-
 ##########################################################################################
 ####                                   Pre Process                                    ####
 ##########################################################################################
-#### Listing Cameras ####
-graph = FilterGraph()
-
-for name, index in enumerate(graph.get_input_devices()):
-    cprint.warn("Camera name: {}, Camera index: {}".format(index, name))
 
 
 #### CREATING CAMERAS ####
 class Camera:
     def __init__(self, source, name):
-        self.options = {
-            "CAP_PROP_FRAME_WIDTH": 2048, # resolution 2048x1152
-            "CAP_PROP_FRAME_HEIGHT": 1152,
-            "CAP_PROP_FPS": 30, # framerate
-            'THREADED_QUEUE_MODE': True
-        }
         self.source = source
         self.name = name
-        self.gear = CamGear(source=self.source, **self.options)
 
 
 cameras = [
@@ -71,10 +59,12 @@ cameras = [
     # Camera('http://stream.shabakaty.com:6001/movies/ch14/ch14_720.m3u8', 'Camera 1'),
     # Camera('http://stream.shabakaty.com:6001/movies/ch2/ch2_720.m3u8', 'Camera 2'),
     # Camera('http://stream.shabakaty.com:6001/kids/ch6/ch6_720.m3u8', 'Camera 3'),
-    # Camera('http://stream.shabakaty.com:6001/movies/ch3/ch3_720.m3u8', 'Camera 4'),
+    # Camera('http://stream.shabakaty.com:6001/movies/ch3/ch3_360.m3u8', 'Camera 4'),
+    # Camera('http://stream.shabakaty.com:6001/movies/ch8/ch8_720.m3u8', 'Camera 8'),
+    Camera('http://stream.shabakaty.com:6001/movies/ch5/ch5_720.m3u8', 'Fox Movies'),
     # Camera("https://cndw3.shabakaty.com/mp420-1080/56266C5D-3B0E-DEF0-F02C-62B26E9B57D1_video.mp4?response-content-disposition=attachment%3B%20filename%3D%22video.mp4%22&AWSAccessKeyId=RNA4592845GSJIHHTO9T&Expires=1651699211&Signature=ZKZRl20iDzzW%2Bvl8QcURD3ZLz2E%3D", "Before Sunrise")
-    # Camera(0, 'Camera 5'),
-    Camera(2, 'HD Camera')
+    # Camera(1, 'DroidCam'),
+    # Camera(0, 'HD Camera')
 ]
 ###########################################################################################
 
@@ -85,4 +75,22 @@ cameras = [
 ####                                    Core Process                                  ####
 ##########################################################################################
 
-detection = Detection(cameras = cameras, device = device)
+
+if __name__ == '__main__':
+    #### Listing Cameras ####
+    graph = FilterGraph()
+    for name, index in enumerate(graph.get_input_devices()):
+        cprint.warn("Camera name: {}, Camera index: {}".format(index, name))
+
+
+    repsQueue = Queue()
+    settings = Setting()
+
+    recognition = Recognition(repsQueue = repsQueue, db_path=settings.face_db, settings = settings)
+
+    recognition.start()
+
+    for camera in cameras:
+        # Creating a thread for each camera
+        detection = Detection(camera = camera, repsQueue = repsQueue, device = device, settings = settings)
+        detection.start()

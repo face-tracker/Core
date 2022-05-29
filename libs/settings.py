@@ -15,3 +15,6 @@ class Setting:
         self.display_window = True
 
         self.image_limitation = 100
+
+
+        self.face_db = "imgs"
