@@ -40,8 +40,8 @@ class Detection(Process):
         self.settings = settings
 
         self.options = {
-            "CAP_PROP_FRAME_WIDTH": 1920, # resolution 2048x1152
-            "CAP_PROP_FRAME_HEIGHT": 1080,
+            "CAP_PROP_FRAME_WIDTH": 160, # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
+            "CAP_PROP_FRAME_HEIGHT": 120,
             "CAP_PROP_FPS": self.settings.fps, # framerate
             "CAP_PROP_FOURCC": cv2.VideoWriter_fourcc(*'MJPG'), # codec
             'THREADED_QUEUE_MODE': True,
@@ -183,7 +183,7 @@ class Detection(Process):
                 
             if self.settings.display_window == True:
                 cv2.putText(frame, text="Captured {} real face captures".format(self.clean_faces), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.5, color=(0, 0, 255), thickness=1, org=(0, 20))
-                cv2.imshow("Output {}".format(self.camera.name), frame)
+                cv2.imshow("Output {} - {}".format(self.camera.id, self.camera.name), frame)
 
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
