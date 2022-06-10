@@ -1,22 +1,44 @@
-# from deepface import DeepFace
-# from deepface.commons import functions
+import json
+import pickle
+import cv2
+from deepface import DeepFace
+from deepface.commons import functions, distance
+from PIL import Image
+from matplotlib.font_manager import json_dump
+import numpy as np
 
-# import matplotlib.pyplot as plt
+model = DeepFace.build_model("Facenet512")
 
-import redis
-redis = redis.StrictRedis(host="46.101.221.139", port=6379, password="123456")
-print(redis.execute_command("ping"))
-# redis.rpush("test", "test value")
 
-# model = DeepFace.build_model("ArcFace")
+from libs.api import Api
+from libs.connection import Connection
 
-# input_shape = (160, 160)
 
-# source_path = "source.jpg"
+api = Api(Connection())
 
-# source = functions.preprocess_face(source_path, target_size=input_shape)
 
-# print(source.shape)
+local_representation = DeepFace.represent(img_path="source15.jpg", model_name='Facenet512',
+                        model=model, detector_backend='mtcnn', normalization='Facenet')
 
-# plt.imshow(source[0])
 
+# api.upload_represent({
+#     "name": "embeddings_hassan",
+#     "value": local_representation
+# })
+
+api_representation = api.download_represent("embeddings_hassan")
+api_representation = np.array(api_representation['value']).astype('float')
+
+
+diff = distance.findEuclideanDistance(distance.l2_normalize(local_representation), distance.l2_normalize(api_representation))
+# DeepFace.find(img_path=[local_representation, api_representation], model_name='Facenet512', )
+
+print(diff)
+
+# image = np.array(face[:, :, ::-1])
+# image = Image.fromarray((image * 1).astype(np.uint8))
+# image = np.asarray(image)
+# source = functions.preprocess_face(source_path="source.jpg", target_size=input_shape)
+
+
+# cv2.imwrite("test.jpg", (face * 255)[:, :, ::-1])
