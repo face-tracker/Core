@@ -130,18 +130,20 @@ class Detection(Process):
                     try:
                         image = functions.preprocess_face(face, target_size=(112, 112), detector_backend='mtcnn')
                         represent = model.predict(image)[0].tolist()
+
+                        reps.append([camera_name, represent])
+
+                        cprint.info("Face: {} from camera {} accepted.".format(index+1, camera_name))
+                        cprint.info("######## QUEUE SIZE {} ############".format(self.repsQueue.qsize()))
+
+                        cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
+                        
+                        self.clean_faces+=1
+
                     except Exception as er:
                         cprint.err('## Not clear face ##')
-                        continue
-
-                    reps.append([camera_name, represent])
-
-                    cprint.info("Face: {} from camera {} accepted.".format(index+1, camera_name))
-                    cprint.info("######## QUEUE SIZE {} ############".format(self.repsQueue.qsize()))
-
-                    cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
-                    
-                    self.clean_faces+=1
+                        pass
+                        
 
 
                     
@@ -161,7 +163,7 @@ class Detection(Process):
     def process_camera(self, gear):
         counter = 0
         end_time = datetime.now() + timedelta(minutes=self.settings.detection_minutes)
-        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False)
+        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False, min_face_size=self.settings.min_face_size)
         model = ArcFace.loadModel()
 
         # waiting time for m3u8 urls
@@ -183,7 +185,7 @@ class Detection(Process):
             if frame is None:
                 break
             
-            if counter % (self.settings.fps/2) == 0:
+            if counter % self.settings.fps == 0:
                 try:
                     t = threading.Thread(target=self.process_faces, args=[mtcnn, model, frame, self.camera.name])
                     t.start()

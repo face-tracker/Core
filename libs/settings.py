@@ -10,7 +10,7 @@ class Setting:
         self.cosine_distance_new_identity = 0.70
 
         self.min_face_size = 40
-        self.fps = 60
+        self.fps = 30
 
         self.display_window = True
 

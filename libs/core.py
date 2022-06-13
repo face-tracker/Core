@@ -39,7 +39,11 @@ class Core:
         # Sort by difference ascending
         differences.sort(key=lambda x:x[1],reverse=False)
 
-        if differences[0][1] < self.settings.cosine_distance:
+        if differences[0][1] > self.settings.cosine_distance:
+            print("Not found with distance => {}".format(differences[0][1]))
             return False
         else:
             return differences[0]
+
+    def get_keys(self):
+        return self.redis.keys('*')
