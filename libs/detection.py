@@ -2,8 +2,10 @@
 ####                                  Import Libraries                                ####
 ##########################################################################################
 import base64
+import random
 import time
 from deepface import DeepFace                                     # DeepFace API         #
+from deepface.commons import functions
 import os                                                         #OS library            #
 import threading                                                  #Threading library     #
 import cv2                                                        #OpenCV library        #
@@ -18,6 +20,7 @@ from datetime import datetime, timedelta
 from ttictoc import tic,toc
 from multiprocessing import Process, Queue
 from vidgear.gears import CamGear                                 #VidGear library       #
+from deepface.basemodels import ArcFace
 
 ##########################################################################################
 
@@ -40,8 +43,8 @@ class Detection(Process):
         self.settings = settings
 
         self.options = {
-            "CAP_PROP_FRAME_WIDTH": 160, # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
-            "CAP_PROP_FRAME_HEIGHT": 120,
+            # "CAP_PROP_FRAME_WIDTH": 1280, # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
+            # "CAP_PROP_FRAME_HEIGHT": 720,
             "CAP_PROP_FPS": self.settings.fps, # framerate
             "CAP_PROP_FOURCC": cv2.VideoWriter_fourcc(*'MJPG'), # codec
             'THREADED_QUEUE_MODE': True,
@@ -94,7 +97,7 @@ class Detection(Process):
 
 
     ## Processing faces
-    def process_faces(self, mtcnn, frame, camera_name):
+    def process_faces(self, mtcnn, model, frame, camera_name):
         faces, _ = mtcnn.detect(frame)
         crop_img = frame
         reps = []
@@ -123,8 +126,15 @@ class Detection(Process):
 
 
                     face = crop_img
-                        # cv2.imwrite("{}{}_{}.jpg".format(dir, image_file_name, index), (face * 255)[:, :, ::-1])
-                    reps.append([camera_name, np.array(face[:, :, ::-1])])
+                    # cv2.imwrite('{}.jpg'.format(random.randint(0, 10000)), face)
+                    try:
+                        image = functions.preprocess_face(face, target_size=(112, 112), detector_backend='mtcnn')
+                        represent = model.predict(image)[0].tolist()
+                    except Exception as er:
+                        cprint.err('## Not clear face ##')
+                        continue
+
+                    reps.append([camera_name, represent])
 
                     cprint.info("Face: {} from camera {} accepted.".format(index+1, camera_name))
                     cprint.info("######## QUEUE SIZE {} ############".format(self.repsQueue.qsize()))
@@ -151,7 +161,8 @@ class Detection(Process):
     def process_camera(self, gear):
         counter = 0
         end_time = datetime.now() + timedelta(minutes=self.settings.detection_minutes)
-        mtcnn = MTCNN(keep_all=True, image_size=224, device=self.device, select_largest=False, min_face_size=self.settings.min_face_size)
+        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False)
+        model = ArcFace.loadModel()
 
         # waiting time for m3u8 urls
         wt = 1 / self.settings.fps
@@ -174,7 +185,7 @@ class Detection(Process):
             
             if counter % (self.settings.fps/2) == 0:
                 try:
-                    t = threading.Thread(target=self.process_faces, args=[mtcnn, frame, self.camera.name])
+                    t = threading.Thread(target=self.process_faces, args=[mtcnn, model, frame, self.camera.name])
                     t.start()
                 except Exception as er:
                     cprint.err(er)

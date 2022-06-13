@@ -22,6 +22,7 @@ from libs.recognition import Recognition                    #Recognition Compone
 from libs.settings import Setting                           #Setting Component     #
 from libs.connection import Connection                      #Connection Lib        #
 from libs.api import Api                                    #API Lib               #
+from libs.core import Core
 ##########################################################################################
 
 
@@ -45,10 +46,10 @@ cprint.ok('Running on device: {}'.format(device))
 
 
 ##########################################################################################
-####                                 API CONNECTION                                   ####
+####                                 CONNECTIONS                                      ####
 ##########################################################################################
 api = Api(Connection())
-
+core = Core()
 
 
 
@@ -68,18 +69,18 @@ class Camera:
 
 
 
-# cameras = [
-#     # Creating a camera object with the given source and name.
-#     # Camera('http://stream.shabakaty.com:6001/movies/ch14/ch14_720.m3u8', 'Camera 1'),
-#     # Camera('http://stream.shabakaty.com:6001/movies/ch2/ch2_720.m3u8', 'Camera 2'),
-#     # Camera('http://stream.shabakaty.com:6001/kids/ch6/ch6_720.m3u8', 'Camera 3'),
-#     # Camera('http://stream.shabakaty.com:6001/movies/ch3/ch3_360.m3u8', 'Camera 4'),
-#     # Camera('http://stream.shabakaty.com:6001/movies/ch8/ch8_720.m3u8', 'Camera 8'),
-#     Camera('http://stream.shabakaty.com:6001/movies/ch5/ch5_720.m3u8', 'Fox Movies'),
-#     # Camera("https://cndw3.shabakaty.com/mp420-1080/56266C5D-3B0E-DEF0-F02C-62B26E9B57D1_video.mp4?response-content-disposition=attachment%3B%20filename%3D%22video.mp4%22&AWSAccessKeyId=RNA4592845GSJIHHTO9T&Expires=1651699211&Signature=ZKZRl20iDzzW%2Bvl8QcURD3ZLz2E%3D", "Before Sunrise")
-#     # Camera(1, 'DroidCam'),
-#     # Camera(0, 'HD Camera')
-# ]
+cameras = [
+    # Creating a camera object with the given source and name.
+    # Camera('http://stream.shabakaty.com:6001/movies/ch14/ch14_720.m3u8', 'Camera 1'),
+    # Camera('http://stream.shabakaty.com:6001/movies/ch2/ch2_720.m3u8', 'Camera 2'),
+    # Camera('http://stream.shabakaty.com:6001/kids/ch6/ch6_720.m3u8', 'Camera 3'),
+    # Camera('http://stream.shabakaty.com:6001/movies/ch3/ch3_360.m3u8', 'Camera 4'),
+    # Camera('http://stream.shabakaty.com:6001/movies/ch8/ch8_720.m3u8', 'Camera 8'),
+    # Camera('0', 'http://stream.shabakaty.com:6001/movies/ch5/ch5_720.m3u8', 'Fox Movies'),
+    # Camera("https://cndw3.shabakaty.com/mp420-1080/56266C5D-3B0E-DEF0-F02C-62B26E9B57D1_video.mp4?response-content-disposition=attachment%3B%20filename%3D%22video.mp4%22&AWSAccessKeyId=RNA4592845GSJIHHTO9T&Expires=1651699211&Signature=ZKZRl20iDzzW%2Bvl8QcURD3ZLz2E%3D", "Before Sunrise")
+    # Camera(1, 'DroidCam'),
+    # Camera(0, 'HD Camera')
+]
 ###########################################################################################
 
 
@@ -99,7 +100,6 @@ if __name__ == '__main__':
     
     # API GET all cameras
     all_cameras = api.get_all_cameras()
-    # print(all_cameras)
     cameras = []
     for camera in all_cameras:
         if camera['state'] == 1:

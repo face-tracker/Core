@@ -1,44 +1,30 @@
-import json
-import pickle
-import cv2
 from deepface import DeepFace
-from deepface.commons import functions, distance
-from PIL import Image
-from matplotlib.font_manager import json_dump
+from deepface.commons import functions
 import numpy as np
+from libs.core import Core
+import matplotlib.pyplot as plt
+core = Core()
 
-model = DeepFace.build_model("Facenet512")
+model = DeepFace.build_model("ArcFace")
 
+core.reset_db()
 
-from libs.api import Api
-from libs.connection import Connection
+for i in range(1, 4):
+    print(i)
+    # face = DeepFace.detectFace(img_path="{}.jpg".format(i), target_size=(112, 112), detector_backend='mtcnn')
+    face = functions.preprocess_face("{}.jpg".format(i), target_size=(112, 112), detector_backend='mtcnn')
+    # face = functions.normalize_input(face, normalization='ArcFace')
+    # plt.imsave('t.jpg', face[0])
+    reps = model.predict(face)[0].tolist()
+    # local = DeepFace.represent(img_path=face[0], model_name='ArcFace',
+                            #    model=model, detector_backend='mtcnn', normalization='ArcFace')
+    core.represent_set(1, reps)
+    # exit()
 
-
-api = Api(Connection())
-
-
-local_representation = DeepFace.represent(img_path="source15.jpg", model_name='Facenet512',
-                        model=model, detector_backend='mtcnn', normalization='Facenet')
-
-
-# api.upload_represent({
-#     "name": "embeddings_hassan",
-#     "value": local_representation
-# })
-
-api_representation = api.download_represent("embeddings_hassan")
-api_representation = np.array(api_representation['value']).astype('float')
-
-
-diff = distance.findEuclideanDistance(distance.l2_normalize(local_representation), distance.l2_normalize(api_representation))
-# DeepFace.find(img_path=[local_representation, api_representation], model_name='Facenet512', )
-
-print(diff)
-
-# image = np.array(face[:, :, ::-1])
-# image = Image.fromarray((image * 1).astype(np.uint8))
-# image = np.asarray(image)
-# source = functions.preprocess_face(source_path="source.jpg", target_size=input_shape)
-
-
-# cv2.imwrite("test.jpg", (face * 255)[:, :, ::-1])
+# represents = core.representations
+# for i in represents:
+#     re = np.array(i[1]).astype('float')
+#     print(re.shape)
+#     # DeepFace.detectFace(img_path=re, target_size=(112, 112), detector_backend='mtcnn')
+#     # plt.imshow(re, interpolation='nearest')
+#     exit()
