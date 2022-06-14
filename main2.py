@@ -17,7 +17,7 @@ import torch                                                      #Pytorch libra
 ##########################################################################################
 ####                                  Custom Libraries                                ####
 ##########################################################################################
-from libs.detection import Detection                        #Detection Component   #
+from libs.camera import Detection                        #Detection Component   #
 from libs.recognition import Recognition                    #Recognition Component #
 from libs.settings import Setting                           #Setting Component     #
 from libs.connection import Connection                      #Connection Lib        #

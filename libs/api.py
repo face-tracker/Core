@@ -6,7 +6,7 @@ class Api:
         self.con = connection
     
     def get_all_cameras(self):
-        # print(self.con.get("cameras").content)
+        # print(self.con.get("cameras").json())
         return self.con.get("cameras").json()
 
 

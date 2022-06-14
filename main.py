@@ -2,6 +2,7 @@
 ####                                  Import Libraries                                ####
 ##########################################################################################
 import enum
+import json
 from multiprocessing import Queue
 import threading
 from deepface import DeepFace                                     #DeepFace library      #
@@ -11,14 +12,14 @@ import time                                                       #Time library 
 import cv2                                                        #OpenCV library        #
 from cprint import *                                              #Colorful print library#
 from pygrabber.dshow_graph import FilterGraph                     #PyGrabber library     #
+from munch import DefaultMunch
 
 ### DETECTION LIBRARIESS ###
 import torch                                                      #Pytorch library       #
 ##########################################################################################
 ####                                  Custom Libraries                                ####
 ##########################################################################################
-from libs.detection import Detection                        #Detection Component   #
-from libs.recognition import Recognition                    #Recognition Component #
+from libs.camera import Camera                              #Camera Component   #
 from libs.settings import Setting                           #Setting Component     #
 from libs.connection import Connection                      #Connection Lib        #
 from libs.api import Api                                    #API Lib               #
@@ -49,7 +50,6 @@ cprint.ok('Running on device: {}'.format(device))
 ####                                 CONNECTIONS                                      ####
 ##########################################################################################
 api = Api(Connection())
-core = Core()
 
 
 
@@ -61,15 +61,15 @@ core = Core()
 
 
 #### CREATING CAMERAS ####
-class Camera:
-    def __init__(self, id, source, name):
-        self.id = id
-        self.source = source
-        self.name = name
+# class Camera:
+#     def __init__(self, id, source, name):
+#         self.id = id
+#         self.source = source
+#         self.name = name
 
 
 
-cameras = [
+# cameras = [
     # Creating a camera object with the given source and name.
     # Camera('http://stream.shabakaty.com:6001/movies/ch14/ch14_720.m3u8', 'Camera 1'),
     # Camera('http://stream.shabakaty.com:6001/movies/ch2/ch2_720.m3u8', 'Camera 2'),
@@ -80,7 +80,7 @@ cameras = [
     # Camera("https://cndw3.shabakaty.com/mp420-1080/56266C5D-3B0E-DEF0-F02C-62B26E9B57D1_video.mp4?response-content-disposition=attachment%3B%20filename%3D%22video.mp4%22&AWSAccessKeyId=RNA4592845GSJIHHTO9T&Expires=1651699211&Signature=ZKZRl20iDzzW%2Bvl8QcURD3ZLz2E%3D", "Before Sunrise")
     # Camera(1, 'DroidCam'),
     # Camera(0, 'HD Camera')
-]
+# ]
 ###########################################################################################
 
 
@@ -90,6 +90,12 @@ cameras = [
 ####                                    Core Process                                  ####
 ##########################################################################################
 
+def search_camera(cameras_processes, camera):
+    for process in cameras_processes:
+        if process[0].id == camera.id:
+            return process
+    return None
+
 
 if __name__ == '__main__':
     #### Listing Cameras ####
@@ -98,32 +104,46 @@ if __name__ == '__main__':
         cprint.warn("Camera name: {}, Camera index: {}".format(index, name))
 
     
-    # API GET all cameras
-    all_cameras = api.get_all_cameras()
-    cameras = []
-    for camera in all_cameras:
-        if camera['state'] == 1:
-            cameras.append(Camera(camera['id'], camera['source'], camera['name']))
-
-    for camera in cameras:
-        cprint.ok('[{}] Connecting...'.format(camera.name))
-        time.sleep(1)
-        cprint.ok('[{}] Connected!'.format(camera.name))
-
-    cprint.ok('Running on {} cameras'.format(len(cameras)))
-
-
-
-
-    
-    repsQueue = Queue()
     settings = Setting()
+    starttime = time.time()
+    cameras_processes = []
 
-    recognition = Recognition(repsQueue = repsQueue, db_path=settings.face_db, settings = settings)
+    while True:
+        print("Starting...")
+        # API GET all cameras
+        all_cameras = api.get_all_cameras()
+        cameras = []
+        for camera in all_cameras:
+            camera = DefaultMunch.fromDict(camera)
+            get_camera = search_camera(cameras_processes, camera)
+            # Camera is active
+            if camera.state == 1:
+                if get_camera is None:
+                    new_camera = Camera(camera = camera, device = device, settings = settings)
+                    new_camera.start()
+                    cameras_processes.append([camera, new_camera])
+                    cprint.ok("Place [{}], Camera [{}] has been started".format(camera.place.id, camera.name))
+                else:
+                    if not camera.updated_time == get_camera[0].updated_time:
+                        get_camera[1].kill()
+                        del get_camera
+                        new_camera = Camera(camera = camera, device = device, settings = settings)
+                        new_camera.start()
+                        cameras_processes.append([camera, new_camera])
+                        cprint.ok("Place [{}], Camera [{}] has been restarted".format(camera.place.id, camera.name))
+                    else:
+                        cprint.warn("Place [{}], Camera [{}] is already running and no need to restart".format(camera.place.id, camera.name))
+            else:
+                if get_camera is not None:
+                    get_camera[1].kill()
+                    del get_camera
+                    cprint.warn("Place [{}], Camera [{}] has been stopped".format(camera.place.id, camera.name))
 
-    recognition.start()
 
-    for camera in cameras:
-        # Creating a thread for each camera
-        detection = Detection(camera = camera, repsQueue = repsQueue, device = device, settings = settings)
-        detection.start()
+        time.sleep(30.0 - ((time.time() - starttime) % 30.0))
+
+        cprint.ok('Running on {} cameras'.format(len(cameras)))
+
+
+            
+        

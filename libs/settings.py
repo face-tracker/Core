@@ -7,6 +7,7 @@ class Setting:
         # cosine distance > cosine_distance and cosine distance < cosine_distance_new_identity => not found
         # cosine distance > cosine_distance_new_identity => new identity
         self.cosine_distance = 0.45
+        self.eeuclidean_l2_distance = 0.75
         self.cosine_distance_new_identity = 0.70
 
         self.min_face_size = 40

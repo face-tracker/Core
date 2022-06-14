@@ -22,6 +22,8 @@ from multiprocessing import Process, Queue
 from vidgear.gears import CamGear                                 #VidGear library       #
 from deepface.basemodels import ArcFace
 
+from libs.core import Core
+
 ##########################################################################################
 
 
@@ -29,12 +31,10 @@ from deepface.basemodels import ArcFace
 ##########################################################################################
 ####                                    Core Process                                  ####
 ##########################################################################################
-class Detection(Process):
+class Camera(Process):
     # Initializing
-    def __init__(self, camera, repsQueue, device, settings):
-        super(Detection, self).__init__()
-
-        self.repsQueue = repsQueue
+    def __init__(self, camera, device, settings):
+        super(Camera, self).__init__()
 
         self.camera = camera
         
@@ -43,9 +43,9 @@ class Detection(Process):
         self.settings = settings
 
         self.options = {
-            # "CAP_PROP_FRAME_WIDTH": 1280, # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
-            # "CAP_PROP_FRAME_HEIGHT": 720,
-            "CAP_PROP_FPS": self.settings.fps, # framerate
+            "CAP_PROP_FRAME_WIDTH": self.camera.width, # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
+            "CAP_PROP_FRAME_HEIGHT": self.camera.height,
+            "CAP_PROP_FPS": self.camera.fps, # framerate
             "CAP_PROP_FOURCC": cv2.VideoWriter_fourcc(*'MJPG'), # codec
             'THREADED_QUEUE_MODE': True,
             # "CAP_PROP_BUFFERSIZE": 3
@@ -70,20 +70,19 @@ class Detection(Process):
     def run(self):
         gear = CamGear(source=self.camera.source, **self.options)
 
-
         self.echo(message="Starting...", name=self.camera.name)
         gear.start()
         self.echo(message="Started!", name=self.camera.name)
+
+        core = Core(self.camera.organization_id)
+
+        if len(core.representations) == 0:
+            self.echo(message="No representations found for organization {} - {}".format(self.camera.organization.id, self.camera.organization.name), name=self.camera.name)
+            return
         
-        while True:
-            # Request from API (response students ids)
-            has_lecture_at_this_time = True
-            if has_lecture_at_this_time:
-                # Process cameras
-                self.process_camera(gear)
-            
-            cprint.warn("[{}] Recalling lecture statue...".format(self.camera.name))
-            time.sleep(60*1)
+        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False, min_face_size=self.camera.min_face_size)
+
+        self.process_camera(gear, mtcnn, core)
 
         # Stop cameras
         self.stop_cameras()
@@ -97,13 +96,12 @@ class Detection(Process):
 
 
     ## Processing faces
-    def process_faces(self, mtcnn, model, frame, camera_name):
+    def process_faces(self, mtcnn, core, frame, camera):
         faces, _ = mtcnn.detect(frame)
         crop_img = frame
-        reps = []
         # Representations
         if faces is not None:
-            self.echo("Detect {} faces".format(len(faces)), name=camera_name)
+            self.echo("Detect {} faces".format(len(faces)), name=camera.name)
 
             for index, box in enumerate(faces):
                 # getting face
@@ -116,25 +114,17 @@ class Detection(Process):
                 height, width = crop_img.shape[:2]
 
                 # Check if face width and height is valid
-                if height > self.settings.min_face_size and width > self.settings.min_face_size:
-                    # face = DeepFace.detectFace(img_path = crop_img, 
-                    #                             target_size = (224, 224), 
-                    #                             detector_backend = 'mtcnn',
-                    #                             )
-                    # if face is not None:
-                    # self.repsQueue.put([camera_name, np.array(face * 255)])
-
-
+                # if height > camera.min_face_size and width > camera.min_face_size:
+                if True:
                     face = crop_img
-                    # cv2.imwrite('{}.jpg'.format(random.randint(0, 10000)), face)
                     try:
-                        image = functions.preprocess_face(face, target_size=(112, 112), detector_backend='mtcnn')
-                        represent = model.predict(image)[0].tolist()
+                        dist = core.find(face)
+                        if dist:
+                            cprint.info("[{}] Recognized face for person id ( {} ) with distance {}".format(camera.name, dist[0], dist[1]))
+                        else:
+                            cprint.err("[{}] Face not found!".format(camera.name))
 
-                        reps.append([camera_name, represent])
-
-                        cprint.info("Face: {} from camera {} accepted.".format(index+1, camera_name))
-                        cprint.info("######## QUEUE SIZE {} ############".format(self.repsQueue.qsize()))
+                        # cprint.info("Face: {} from camera {} accepted.".format(index+1, camera.name))
 
                         cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
                         
@@ -142,52 +132,38 @@ class Detection(Process):
 
                     except Exception as er:
                         cprint.err('## Not clear face ##')
+                        cprint.err(er)
                         pass
                         
-
-
-                    
-
-                    # else:
-                    #     cprint.err("Face: {} from camera {} rejected because face not clear.".format(index+1, camera_name))
-                
                 # Face too small
                 else:
                     cprint.err("Face: {} from camera {} rejected because face is too small.".format(index+1, camera_name))
 
-        for rep in reps:
-            self.repsQueue.put(rep)
         return crop_img
 
     ## Processing cameras
-    def process_camera(self, gear):
+    def process_camera(self, gear, mtcnn, core):
         counter = 0
-        end_time = datetime.now() + timedelta(minutes=self.settings.detection_minutes)
-        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False, min_face_size=self.settings.min_face_size)
-        model = ArcFace.loadModel()
+
+        end_time = datetime.now() + timedelta(minutes=self.camera.type)
 
         # waiting time for m3u8 urls
         wt = 1 / self.settings.fps
-
         while True:
             start_time = time.time()
-
             current_time = datetime.now()
-            # Finish after 5 minutes
-            if current_time >= end_time:
+            # Finish after x minutes or continuous mode
+            if current_time >= end_time and not self.camera.type == 0:
                 cprint.ok("[{}] Detection finished.".format(self.camera.name))
                 break
-            # if self.repsQueue.qsize() > 60:
-            #     cprint.warn("Waiting Queue size: {}".format(self.repsQueue.qsize()))
-            #     time.sleep(1)
-            # else:
+
             frame = gear.read()
             if frame is None:
                 break
             
             if counter % self.settings.fps == 0:
                 try:
-                    t = threading.Thread(target=self.process_faces, args=[mtcnn, model, frame, self.camera.name])
+                    t = threading.Thread(target=self.process_faces, args=[mtcnn, core, frame, self.camera])
                     t.start()
                 except Exception as er:
                     cprint.err(er)
