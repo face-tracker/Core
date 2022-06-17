@@ -1,14 +1,10 @@
 import cv2
 import numpy as np
 from libs.core import Core
-from libs.connection import Connection
 from libs.api import Api
-from deepface import DeepFace
-model = DeepFace.build_model("ArcFace")
-from deepface.commons import functions
 import tensorflow as tf
 import argparse
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, request
 import os
 import warnings
 
@@ -30,36 +26,32 @@ if tf_version == 1:
 	graph = tf.get_default_graph()
 
 
-api  = Api(Connection())
-core = Core()
-
 # ------------------------------
 # Service API Interface
 
-app.config['UPLOAD_EXTENSIONS'] = ['.jpg', '.png', '.gif']
+app.config['UPLOAD_EXTENSIONS'] = ['.jpg', '.png']
 
-@app.route('/')
+@app.route('/', methods=['POST'])
 def index():
-	return '<h1>Hello, world!</h1>'
-
-
-@app.route('/train', methods=['POST'])
-def train():
     req = request.form
     image = request.files['image']
     person_id = req['person_id']
-    if image.filename != '' and person_id != '':
+    organization_id = req['organization_id']
+    secret = "secret"
+
+    if secret != req['secret']:
+        return {"message": "Not Authorized"}, 400
+
+    if image.filename != '' and person_id != '' and organization_id != '':
+        core = Core(organization_id)
         # Training image
         npimg = np.fromfile(image, np.uint8)
         image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
-        face = functions.preprocess_face(image, target_size=(112, 112), detector_backend='mtcnn')
-        reps = model.predict(face)[0].tolist()
-        core.represent_set(person_id, reps)
+        core.rset(person_id, image)
 
         ###################################
         ###### [ Send image to api ] ######
         ###################################
-        
 
         return {"message": "Success"}, 200
     else:

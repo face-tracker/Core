@@ -1,30 +1,25 @@
 ##########################################################################################
 ####                                  Import Libraries                                ####
 ##########################################################################################
-import base64
-import random
 import time
-from deepface import DeepFace                                     # DeepFace API         #
-from deepface.commons import functions
-import os                                                         #OS library            #
-import threading                                                  #Threading library     #
-import cv2                                                        #OpenCV library        #
-from cprint import *                                              #Colorful print library#
-from facenet_pytorch import MTCNN                                 #Facenet library       #
-import datetime                                                   #DateTime library      #
-import numpy as np                                                #Numpy library         #
-from PIL import Image
-from keras.preprocessing import image
+import threading  # Threading library     #
+import cv2  # OpenCV library        #
+from cprint import *  # Colorful print library#
+from facenet_pytorch import MTCNN  # Facenet library       #
+import datetime  # DateTime library      #
 import threading
 from datetime import datetime, timedelta
-from ttictoc import tic,toc
-from multiprocessing import Process, Queue
-from vidgear.gears import CamGear                                 #VidGear library       #
-from deepface.basemodels import ArcFace
-
+from multiprocessing import Process
+from vidgear.gears import CamGear  # VidGear library       #
+from deepface.detectors import FaceDetector
+from libs.api import Api
 from libs.core import Core
+from libs.connection import Connection
+from memprof import *
+from threading import active_count
 
 ##########################################################################################
+
 
 
 
@@ -37,36 +32,33 @@ class Camera(Process):
         super(Camera, self).__init__()
 
         self.camera = camera
-        
+
         self.device = device
 
         self.settings = settings
 
         self.options = {
-            "CAP_PROP_FRAME_WIDTH": self.camera.width, # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
+            # resolution 2048x1152 - 1920x1080 - 1280x720 - 640x480 - 320x240 - 160x120
+            "CAP_PROP_FRAME_WIDTH": self.camera.width,
             "CAP_PROP_FRAME_HEIGHT": self.camera.height,
-            "CAP_PROP_FPS": self.camera.fps, # framerate
-            "CAP_PROP_FOURCC": cv2.VideoWriter_fourcc(*'MJPG'), # codec
+            "CAP_PROP_FPS": self.camera.fps,  # framerate
+            "CAP_PROP_FOURCC": cv2.VideoWriter_fourcc(*'MJPG'),  # codec
             'THREADED_QUEUE_MODE': True,
             # "CAP_PROP_BUFFERSIZE": 3
         }
 
         self.clean_faces = 0
 
-        
-
-
-
     # Helper functions
-    def echo(self, message, name = None):
+
+    def echo(self, message, name=None):
         if name is None:
             cprint.ok("[Detection] " + message)
         else:
             cprint.ok("[Detection][{}] ".format(name) + message)
-            
 
     # Important functions
-    ## Start cameras
+    # Start cameras
     def run(self):
         gear = CamGear(source=self.camera.source, **self.options)
 
@@ -74,28 +66,33 @@ class Camera(Process):
         gear.start()
         self.echo(message="Started!", name=self.camera.name)
 
-        core = Core(self.camera.organization_id)
+        con = Connection()
+
+        core = Core(self.camera.organization_id, connection=con)
+
+        api = Api(con)
+
 
         if len(core.representations) == 0:
-            self.echo(message="No representations found for organization {} - {}".format(self.camera.organization.id, self.camera.organization.name), name=self.camera.name)
+            self.echo(message="No representations found for organization {} - {}".format(
+                self.camera.organization.id, self.camera.organization.name), name=self.camera.name)
+            api.toggle_camera(self.camera.id)
             return
-        
-        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False, min_face_size=self.camera.min_face_size)
 
+        mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False, min_face_size=self.camera.min_face_size)
         self.process_camera(gear, mtcnn, core)
 
         # Stop cameras
         self.stop_cameras()
 
-    ## Stop cameras
+    # Stop cameras
     def stop_cameras(self, gear):
         self.echo(message="Stopping...", name=self.camera.name)
         gear.stop()
         self.echo(message="Stopped!", name=self.camera.name)
         cv2.destroyAllWindows()
 
-
-    ## Processing faces
+    # Processing faces
     def process_faces(self, mtcnn, core, frame, camera):
         faces, _ = mtcnn.detect(frame)
         crop_img = frame
@@ -120,28 +117,32 @@ class Camera(Process):
                     try:
                         dist = core.find(face)
                         if dist:
-                            cprint.info("[{}] Recognized face for person id ( {} ) with distance {}".format(camera.name, dist[0], dist[1]))
+                            cprint.info("[{}] Verified with person ( {} )".format(
+                                camera.name, dist[0]))
                         else:
-                            cprint.err("[{}] Face not found!".format(camera.name))
+                            cprint.err(
+                                "[{}] Face not found!".format(camera.name))
 
                         # cprint.info("Face: {} from camera {} accepted.".format(index+1, camera.name))
 
-                        cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
-                        
-                        self.clean_faces+=1
+                        cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(
+                            box[2]), int(box[3])), (0, 255, 0), 2)
+
+                        self.clean_faces += 1
 
                     except Exception as er:
                         cprint.err('## Not clear face ##')
                         cprint.err(er)
-                        pass
-                        
+                        continue
+
                 # Face too small
                 else:
-                    cprint.err("Face: {} from camera {} rejected because face is too small.".format(index+1, camera_name))
+                    cprint.err("Face: {} from camera {} rejected because face is too small.".format(
+                        index+1, camera_name))
 
         return crop_img
 
-    ## Processing cameras
+    # Processing cameras
     def process_camera(self, gear, mtcnn, core):
         counter = 0
 
@@ -149,6 +150,7 @@ class Camera(Process):
 
         # waiting time for m3u8 urls
         wt = 1 / self.settings.fps
+
         while True:
             start_time = time.time()
             current_time = datetime.now()
@@ -160,19 +162,22 @@ class Camera(Process):
             frame = gear.read()
             if frame is None:
                 break
-            
+
+
             if counter % self.settings.fps == 0:
                 try:
-                    t = threading.Thread(target=self.process_faces, args=[mtcnn, core, frame, self.camera])
+                    t = threading.Thread(target=self.process_faces, args=[
+                                         mtcnn, core, frame, self.camera])
                     t.start()
                 except Exception as er:
                     cprint.err(er)
-                except:
-                    continue
-                
+                    pass
+
             if self.settings.display_window == True:
-                cv2.putText(frame, text="Captured {} real face captures".format(self.clean_faces), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.5, color=(0, 0, 255), thickness=1, org=(0, 20))
-                cv2.imshow("Output {} - {}".format(self.camera.id, self.camera.name), frame)
+                cv2.putText(frame, text="Captured {} real face captures".format(
+                    self.clean_faces), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.5, color=(0, 0, 255), thickness=1, org=(0, 20))
+                cv2.imshow("Output {} - {} - {}".format(self.camera.organization.id, self.camera.id,
+                           self.camera.name), frame)
 
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
@@ -184,12 +189,6 @@ class Camera(Process):
                 time.sleep(wt - dt)
 
             counter += 1
-
+            # cprint.info(active_count())
 
         cv2.destroyAllWindows()
-
-
-
-
-
-

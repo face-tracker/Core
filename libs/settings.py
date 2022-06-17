@@ -23,5 +23,5 @@ class Setting:
         self.redis_port = 19297
         self.redis_password = "ddamvT9zi7xFplvRwMROdsBmRUbbfpJk"
 
-        self.api_email = "gruce@gmail.com"
+        self.api_email = "api@gmail.com"
         self.api_password = "123456"
