@@ -1,5 +1,6 @@
+import io
 import urllib.parse
-
+from PIL import Image
 
 class Api:
     def __init__(self, connection):
@@ -18,3 +19,16 @@ class Api:
     # def download_represent(self, rep):
     #     print(urllib.parse.quote("redis/get/" + rep))
     #     return self.con.get(urllib.parse.quote("redis/get/" + rep)).json()
+
+    def track_person(self, person_id, camera_id, image):
+        im = Image.fromarray((image.astype("uint8"))[:, :, ::-1])
+
+        upload_image = io.BytesIO()
+        im.save(upload_image, "JPEG")
+        upload_image.seek(0)
+                
+        self.con.post("trackings/new", {
+            "person_id": person_id,
+            "camera_id": camera_id
+        }, [('image', ("tracking", upload_image, 'image/jpeg'))])
+        

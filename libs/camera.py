@@ -17,6 +17,7 @@ from libs.core import Core
 from libs.connection import Connection
 from memprof import *
 from threading import active_count
+from PIL import Image
 
 ##########################################################################################
 
@@ -80,7 +81,7 @@ class Camera(Process):
             return
 
         mtcnn = MTCNN(keep_all=True, device=self.device, image_size=112, select_largest=False, min_face_size=self.camera.min_face_size)
-        self.process_camera(gear, mtcnn, core)
+        self.process_camera(gear, mtcnn, core, api)
 
         # Stop cameras
         self.stop_cameras()
@@ -93,7 +94,7 @@ class Camera(Process):
         cv2.destroyAllWindows()
 
     # Processing faces
-    def process_faces(self, mtcnn, core, frame, camera):
+    def process_faces(self, mtcnn, core, api, frame, camera):
         faces, _ = mtcnn.detect(frame)
         crop_img = frame
         # Representations
@@ -101,6 +102,7 @@ class Camera(Process):
             self.echo("Detect {} faces".format(len(faces)), name=camera.name)
 
             for index, box in enumerate(faces):
+                _frame = frame
                 # getting face
                 crop_img = frame[
                     int(box[1]): int(box[3]),
@@ -119,14 +121,30 @@ class Camera(Process):
                         if dist:
                             cprint.info("[{}] Verified with person ( {} )".format(
                                 camera.name, dist[0]))
+
+                            # Text on frame
+                            cv2.putText(frame, text="Captured {} - By {} at {}".format(
+                            time.strftime("%I:%M%p on %B %d, %Y"), camera.name, camera.place.name), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.5, color=(0, 0, 255), thickness=1, org=(0, 50))
+                            
+                            # Rectancgle on frame
+                            cv2.rectangle(_frame, (int(box[0]), int(box[1])), (int(
+                            box[2]), int(box[3])), (0, 255, 0), 2)
+
+                            # Person id on frame
+                            cv2.putText(frame, text="Person id: {}".format(dist[0]), fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=0.5, color=(0, 255, 0), thickness=1, org=(int(box[0]), int(
+                            box[1]) - 10))
+
+                            # Send to API
+                            api.track_person(dist[0], camera.id, _frame)
                         else:
                             cprint.err(
                                 "[{}] Face not found!".format(camera.name))
 
                         # cprint.info("Face: {} from camera {} accepted.".format(index+1, camera.name))
 
-                        cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(
-                            box[2]), int(box[3])), (0, 255, 0), 2)
+                        
+                        
+                        
 
                         self.clean_faces += 1
 
@@ -143,7 +161,7 @@ class Camera(Process):
         return crop_img
 
     # Processing cameras
-    def process_camera(self, gear, mtcnn, core):
+    def process_camera(self, gear, mtcnn, core, api):
         counter = 0
 
         end_time = datetime.now() + timedelta(minutes=self.camera.type)
@@ -167,7 +185,7 @@ class Camera(Process):
             if counter % self.settings.fps == 0:
                 try:
                     t = threading.Thread(target=self.process_faces, args=[
-                                         mtcnn, core, frame, self.camera])
+                                         mtcnn, core, api, frame, self.camera])
                     t.start()
                 except Exception as er:
                     cprint.err(er)
