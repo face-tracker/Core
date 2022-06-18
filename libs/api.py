@@ -20,7 +20,7 @@ class Api:
     #     print(urllib.parse.quote("redis/get/" + rep))
     #     return self.con.get(urllib.parse.quote("redis/get/" + rep)).json()
 
-    def track_person(self, person_id, camera_id, image):
+    def track_person(self, person_id, camera_id, organization_id, image):
         im = Image.fromarray((image.astype("uint8"))[:, :, ::-1])
 
         upload_image = io.BytesIO()
@@ -29,6 +29,7 @@ class Api:
                 
         self.con.post("trackings/new", {
             "person_id": person_id,
-            "camera_id": camera_id
+            "camera_id": camera_id,
+            "organization_id": organization_id
         }, [('image', ("tracking", upload_image, 'image/jpeg'))])
         

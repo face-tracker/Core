@@ -135,7 +135,7 @@ class Camera(Process):
                             box[1]) - 10))
 
                             # Send to API
-                            api.track_person(dist[0], camera.id, _frame)
+                            api.track_person(dist[0], camera.id, camera.organization.id, _frame)
                         else:
                             cprint.err(
                                 "[{}] Face not found!".format(camera.name))
